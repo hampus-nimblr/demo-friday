@@ -22,10 +22,27 @@ type Score = {
 const KEY = "leaderboard:v1";
 const BOARD_LIMIT = 100;
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-});
+/**
+ * Built per request rather than at module scope. Module-level construction runs
+ * during the build, where the store's credentials may legitimately be absent —
+ * and a missing URL there surfaces as an unrelated "Invalid URL /pipeline" at
+ * the first write instead of naming the variable that isn't set.
+ */
+function getRedis(): Redis {
+  const url = process.env.KV_REST_API_URL;
+  const token = process.env.KV_REST_API_TOKEN;
+  if (!url || !token) {
+    throw new Error(
+      `Upstash is not configured: ${[
+        !url && "KV_REST_API_URL",
+        !token && "KV_REST_API_TOKEN",
+      ]
+        .filter(Boolean)
+        .join(" and ")} missing. Link the store to this project in Vercel, then redeploy.`,
+    );
+  }
+  return new Redis({ url, token });
+}
 
 /**
  * Upstash deserialises JSON members automatically, so a member comes back as an
@@ -67,7 +84,7 @@ async function trimBoard(): Promise<void> {
 
 export async function GET() {
   try {
-    const members = await redis.zrange(KEY, 0, 19, { rev: true });
+    const members = await getRedis().zrange(KEY, 0, 19, { rev: true });
     const scores = members
       .map(toScore)
       .filter((entry): entry is Score => entry !== null)
@@ -110,13 +127,21 @@ export async function POST(request: Request) {
   };
 
   try {
-    await redis.zadd(KEY, { score: entry.score, member: JSON.stringify(entry) });
+    await getRedis().zadd(KEY, { score: entry.score, member: JSON.stringify(entry) });
     await trimBoard();
   } catch (error) {
     // Surface the failure so the client can tell the player, instead of the
     // run vanishing silently.
     console.error("Leaderboard write failed", error);
-    return NextResponse.json({ error: "Could not save score" }, { status: 502 });
+    return NextResponse.json(
+      {
+        error: "Could not save score",
+        // Echoed so a broken deploy can be diagnosed from the response itself
+        // rather than by hunting through Vercel logs. No secrets in here.
+        detail: error instanceof Error ? error.message : String(error),
+      },
+      { status: 502 },
+    );
   }
 
   return NextResponse.json(entry, { status: 201 });

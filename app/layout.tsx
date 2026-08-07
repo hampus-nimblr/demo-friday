@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "Sort spam, phishing, and legitimate mail before your inbox overflows.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">
       <head />

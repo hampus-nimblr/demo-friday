@@ -174,6 +174,7 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
     submittedRun.current = false;
     start();
   }
+  
 
   function playAgain() {
     const context = getAudioContext();

@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Inbox Triage</title>
+<style>
+  :root{
+    --bg:#f4f6f8;--panel:#fff;--line:#d9dee5;--text:#1f2937;--muted:#667085;
+    --blue:#2563eb;--red:#c2413b;--redbg:#fff1f0;--green:#2e7d32;--greenbg:#eff8f1;
+    --amber:#b7791f;--shadow:0 1px 3px rgba(16,24,40,.08)
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  button{font:inherit}
+  .app{max-width:1180px;margin:0 auto;padding:20px}
+  .topbar{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .logo{width:34px;height:34px;border-radius:8px;background:#111827;color:#fff;display:grid;place-items:center;font-weight:700}
+  .title{font-size:18px;font-weight:700}
+  .sub{font-size:12px;color:var(--muted)}
+  .hud{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:90px;box-shadow:var(--shadow)}
+  .metric b{display:block;font-size:16px}
+  .metric span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .bufferWrap{min-width:170px}
+  .bar{height:7px;background:#e7ebf0;border-radius:999px;overflow:hidden;margin-top:5px}
+  .fill{height:100%;background:var(--blue);width:60%;transition:width .15s}
+  .fullness .fill{background:#7c8da5}
+  .fullness.warn .fill{background:var(--amber)}
+  .fullness.danger .fill{background:var(--red)}
+  .layout{display:grid;grid-template-columns:230px 1fr;gap:14px}
+  .sidebar,.mailbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+  .sidebar{padding:14px;height:max-content}
+  .navitem{padding:9px 10px;border-radius:7px;margin:2px 0;color:#374151}
+  .navitem.active{background:#eef3ff;color:#1d4ed8;font-weight:600}
+  .tips{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .mailboxHeader{display:grid;grid-template-columns:1fr auto;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .mailboxHeader h2{font-size:15px;margin:0}
+  .mailboxHeader .small{color:var(--muted);font-size:12px}
+  .list{min-height:540px}
+  .empty{padding:80px 20px;text-align:center;color:var(--muted)}
+  .mail{border-bottom:1px solid #eceff3;padding:11px 12px 10px;position:relative;background:#fff;transition:background .15s,transform .15s}
+  .mail:last-child{border-bottom:0}
+  .mail:hover{background:#fafbfc}
+  .mail.correct{background:var(--greenbg)}
+  .mail.wrong{background:var(--redbg);animation:shake .22s linear 1}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+  .mailGrid{display:grid;grid-template-columns:180px 1fr auto;gap:12px;align-items:start}
+  .senderName{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .senderAddr{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .subject{font-weight:650;margin-bottom:3px}
+  .preview{font-size:13px;color:#4b5563}
+  .url{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#475569;margin-top:5px;word-break:break-all}
+  .actions{display:flex;gap:6px}
+  .actions button{border:1px solid #cfd5dd;background:#fff;padding:6px 8px;border-radius:6px;cursor:pointer}
+  .actions button:disabled{cursor:not-allowed;opacity:.45;background:#f3f4f6}
+  .mail.locked{opacity:.92}
+  .actions button:hover{background:#f3f4f6}
+  .actions button[data-type="spam"]:hover{border-color:#8b5cf6}
+  .actions button[data-type="phishing"]:hover{border-color:#dc2626}
+  .actions button[data-type="legit"]:hover{border-color:#16a34a}
+  .expand{cursor:pointer}
+  .body{display:none;margin-top:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:7px;white-space:pre-wrap}
+  .mail.expanded .body{display:block}
+  .hint{margin-top:8px;padding:7px 9px;background:#fff7ed;border-left:3px solid #f59e0b;color:#7c2d12;font-size:12px}
+  .marker{position:absolute;left:2px;top:50%;transform:translateY(-50%);color:var(--red);font-weight:800}
+  .explain{margin-top:7px;color:var(--red);font-size:12px}
+  .keyboard{font-size:11px;color:var(--muted);margin-top:6px}
+  .gameover{position:fixed;inset:0;background:rgba(17,24,39,.42);display:none;align-items:center;justify-content:center;padding:20px;z-index:20}
+  .gameover.show{display:flex}
+  .modal{width:min(620px,96vw);background:#fff;border-radius:12px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+  .modal h1{margin:0 0 6px;font-size:24px}
+  .modal p{color:var(--muted)}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:18px 0}
+  .stat{border:1px solid var(--line);border-radius:8px;padding:11px}
+  .stat b{display:block;font-size:18px}
+  .table{width:100%;border-collapse:collapse;margin:12px 0}
+  .table th,.table td{padding:8px;border-bottom:1px solid var(--line);text-align:left}
+  .primary{background:#111827;color:#fff;border:0;border-radius:7px;padding:9px 14px;cursor:pointer}
+  .levelup{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-8px);background:#111827;color:#fff;padding:9px 14px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:30;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+  .levelup.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast{position:fixed;top:62px;left:50%;transform:translateX(-50%) translateY(-6px);background:#fff;border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.14);padding:8px 12px;border-radius:8px;opacity:0;transition:.18s;pointer-events:none;z-index:29;font-weight:650}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .scorePop{position:absolute;right:12px;top:8px;font-weight:800;color:var(--green);pointer-events:none;animation:floatUp .7s ease-out forwards}
+  @keyframes floatUp{0%{opacity:0;transform:translateY(6px) scale(.9)}20%{opacity:1}100%{opacity:0;transform:translateY(-18px) scale(1.05)}}
+  .mail.hot{box-shadow:inset 3px 0 0 #f59e0b}
+  .priority{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:999px;background:#fff7ed;color:#9a3412;font-size:10px;font-weight:800;letter-spacing:.04em;vertical-align:1px}
+  .mailbox.tense{animation:tensePulse 1s ease-in-out infinite}
+  @keyframes tensePulse{0%,100%{box-shadow:var(--shadow)}50%{box-shadow:0 0 0 3px rgba(194,65,59,.08),var(--shadow)}}
+  .comboFire{color:#9a3412}
+  .streakNote{font-size:11px;color:var(--muted);margin-top:2px}
+  @media (max-width:850px){
+    .layout{grid-template-columns:1fr}
+    .sidebar{display:none}
+    .mailGrid{grid-template-columns:130px 1fr}
+    .actions{grid-column:1/-1}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><div class="logo">IT</div><div><div class="title">Inbox Triage</div><div class="sub">Classify mail before the inbox fills up</div></div></div>
+    <div class="hud">
+      <div class="metric"><span>Score</span><b id="score">0</b></div>
+      <div class="metric"><span>Level</span><b id="level">1</b></div>
+      <div class="metric"><span>Combo</span><b id="combo">0 ×1.0</b></div>
+      <div class="metric bufferWrap"><span>Reading buffer <i id="bufferText">6.0s</i></span><div class="bar"><div class="fill" id="bufferFill"></div></div></div>
+      <div class="metric bufferWrap fullness" id="fullnessMetric"><span>Inbox <i id="slotText">0 / 8</i></span><div class="bar"><div class="fill" id="fullnessFill" style="width:0%"></div></div></div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="navitem active">Inbox <span id="sideCount">0</span></div>
+      <div class="navitem">Starred</div>
+      <div class="navitem">Sent</div>
+      <div class="navitem">Drafts</div>
+      <div class="navitem">Archive</div>
+      <div class="tips">
+        Keyboard: <b>1</b> Spam, <b>2</b> Phishing, <b>3</b> Legit.<br><br>
+        Shortcuts always act on the topmost message.<br><br>
+        Expanding a message pauses arrivals while reading buffer remains.
+      </div>
+    </aside>
+
+    <main class="mailbox">
+      <div class="mailboxHeader">
+        <div><h2>Inbox</h2><div class="small">Newest messages appear at the bottom</div></div>
+        <div class="small" id="arrivalText">Next mail in 3.0s</div>
+      </div>
+      <div class="list" id="mailList"><div class="empty">Your inbox is quiet. For now.</div></div>
+    </main>
+  </div>
+</div>
+
+<div class="levelup" id="levelup">Level up</div><div class="toast" id="toast"></div>
+
+<div class="gameover" id="gameover">
+  <div class="modal">
+    <h1>Inbox overflow</h1>
+    <p>The ninth message arrived before you cleared a slot.</p>
+    <div class="stats">
+      <div class="stat"><span>Final score</span><b id="finalScore">0</b></div>
+      <div class="stat"><span>Highest level</span><b id="finalLevel">1</b></div>
+      <div class="stat"><span>Bounced mails</span><b id="finalBounces">0</b></div>
+      <div class="stat"><span>Inbox clears</span><b id="finalClears">0</b></div>
+      <div class="stat"><span>Total correct</span><b id="finalCorrect">0</b></div>
+    </div>
+    <table class="table">
+      <thead><tr><th>Category</th><th>Correct</th><th>Incorrect</th></tr></thead>
+      <tbody id="breakdown"></tbody>
+    </table>
+    <button class="primary" id="restart">Play again</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const MAX_SLOTS=8, BUFFER_START=6, BUFFER_CAP=10;
+  const firstNames=["Alex","Emma","Noah","Sofia","Liam","Maja","Oliver","Elsa","Lucas","Nora","Elias","Freja","William","Clara","Leo","Ida"];
+  const lastNames=["Andersson","Lindberg","Karlsson","Berg","Nyström","Svensson","Holm","Dahl","Eriksen","Johansson","Møller","Hansen"];
+  const companies=["Nordpeak","Fjord Labs","Arctic Lane","Svea Works","Klint Group","Blue Birch","Northframe","Malmö Systems","Aster AB","Polar Studio"];
+  const internalDomains=["nordpeak.com","fjordlabs.se","arcticlane.io","sveaworks.se","klintgroup.com","bluebirch.io"];
+
+  function n(){return firstNames[Math.floor(Math.random()*firstNames.length)]+" "+lastNames[Math.floor(Math.random()*lastNames.length)]}
+  function c(){return companies[Math.floor(Math.random()*companies.length)]}
+  function internalDomain(){return internalDomains[Math.floor(Math.random()*internalDomains.length)]}
+
+  const pool = [
+    // SPAM 15+
+    {cat:"spam",tier:1,from:"Prize Center",addr:"winner@bonus-gifts.biz",sub:"FREE IPHONE - CLAIM TODAY",prev:"You were selected from millions. Confirm shipping now.",body:"Congratulations!\n\nYou have been selected for a FREE iPhone. Pay only a small shipping fee to claim today.",url:"http://bonus-gifts.biz/claim",why:"This is unsolicited prize spam using a free-gift lure.",hint:"Look at the exaggerated prize claim and urgency."},
+    {cat:"spam",tier:1,from:"Global Fortune",addr:"agent@cashrelease-now.info",sub:"Your $4,800,000 inheritance",prev:"A dormant fund has been assigned to you.",body:"Dear beneficiary,\n\nYour contact was selected for transfer of an unclaimed estate. Reply with your banking details.",why:"Classic advance-fee / inheritance spam.",hint:"Ask why a stranger would transfer a fortune to you."},
+    {cat:"spam",tier:1,from:"Crypto Signals",addr:"alerts@moonrocket.pro",sub:"Turn €250 into €9,000 this week",prev:"Limited strategy used by professional traders.",body:"Our AI bot identifies guaranteed crypto pumps. Join before the next signal window closes.",why:"Unsolicited get-rich-quick marketing with unrealistic returns.",hint:"Look for guaranteed returns and unsolicited investment hype."},
+    {cat:"spam",tier:1,from:"Mega Deals",addr:"sales@flashdeals.world",sub:"90% OFF EVERYTHING - 2 HOURS ONLY",prev:"Luxury brands from €8. Hurry.",body:"Warehouse liquidation. Designer goods at impossible prices. Click before inventory disappears.",why:"Mass-marketing spam with implausible discounts.",hint:"Consider whether the discount and urgency are plausible."},
+    {cat:"spam",tier:1,from:"Dating Match",addr:"hello@meet-local-singles.click",sub:"Someone nearby likes your profile",prev:"3 people are waiting to chat.",body:"You have new admirers near you. Open your private matches now.",why:"Unsolicited dating spam.",hint:"Think about whether you ever created an account with this service."},
+    {cat:"spam",tier:2,from:"Webinar Team",addr:"events@growth-hacks-mail.com",sub:"Last seat: triple your sales pipeline",prev:"Exclusive webinar starts tomorrow.",body:"Cold outreach: join our sales acceleration webinar and receive a free playbook.",why:"Unsolicited bulk marketing, not credential theft.",hint:"This is annoying marketing, but does it ask for sensitive access?"},
+    {cat:"spam",tier:2,from:"SEO Outreach",addr:"jason@rank-fast-agency.net",sub:"I found 17 issues on your website",prev:"We can put your company on page one.",body:"I reviewed your website and found SEO problems. We guarantee first-page ranking within 30 days.",why:"Unsolicited sales spam.",hint:"Distinguish cold marketing from an attempt to steal credentials."},
+    {cat:"spam",tier:2,from:"Conference List",addr:"team@b2b-leads-market.com",sub:"Buy the Nordic CIO attendee list",prev:"12,400 verified executives available today.",body:"Purchase our complete attendee database with direct emails and mobile numbers.",why:"Bulk list-sale spam.",hint:"This is unsolicited commercial mail, not impersonation."},
+    {cat:"spam",tier:2,from:"Printer Supplies",addr:"offers@toner-direct.eu",sub:"Office toner clearance",prev:"Compatible cartridges at wholesale rates.",body:"We supply compatible office toner throughout Scandinavia. Reply for a quote.",why:"Unsolicited sales mail.",hint:"No account compromise is being requested."},
+    {cat:"spam",tier:3,from:"Vendor Network",addr:"network@procure-connect.co",sub:"Partnership opportunity for {company}",prev:"We connect suppliers with Nordic buyers.",body:"Your company matches our sourcing network. Paid placement starts at €299/month.",why:"Unsolicited business development spam.",hint:"Look for broad commercial outreach rather than identity theft."},
+    {cat:"spam",tier:3,from:"Research Desk",addr:"survey@industry-pulse.org",sub:"Paid survey: 8 minutes, €20",prev:"We need technology leaders in Northern Europe.",body:"Complete our short research survey and receive an electronic voucher.",why:"Promotional survey spam.",hint:"A payment offer can be spam without being phishing."},
+    {cat:"spam",tier:3,from:"Cloud Expo",addr:"invite@cloudexpo-events.com",sub:"VIP pass reserved for you",prev:"Claim your complimentary exhibition pass.",body:"Join 200+ vendors at Cloud Expo. Your complimentary attendee pass expires Friday.",why:"Event marketing spam.",hint:"Check whether this is merely an unsolicited event invitation."},
+    {cat:"spam",tier:4,from:"Recruiting Desk",addr:"roles@exec-talent-network.com",sub:"CTO advisory role - confidential",prev:"A portfolio company needs strategic guidance.",body:"We are building a network of technology advisors. Membership is paid and includes curated introductions.",why:"Unsolicited recruiting/network marketing spam.",hint:"Look for the commercial upsell hidden in the outreach."},
+    {cat:"spam",tier:4,from:"Magazine Awards",addr:"awards@techleaders-review.com",sub:"{company} shortlisted for Top 50 award",prev:"Feature package available in our next issue.",body:"Congratulations. Your company is shortlisted for our annual award. Winners typically purchase a profile package.",why:"Vanity-award marketing spam.",hint:"Check whether the 'award' depends on buying publicity."},
+    {cat:"spam",tier:5,from:"Industry Brief",addr:"editor@enterprise-insights.news",sub:"Quote request for security trends article",prev:"We are collecting 100-word expert comments.",body:"We are publishing a sponsored roundup. Contributors can secure guaranteed placement by purchasing reprint rights.",why:"Subtle sponsored-content sales spam.",hint:"Focus on the paid-placement language."},
+    {cat:"spam",tier:5,from:"SaaS Benchmark",addr:"team@saas-benchmarking.com",sub:"Your 2026 peer benchmark is ready",prev:"Compare your metrics to 300 Nordic companies.",body:"We created a benchmark estimate from public data. Unlock the detailed report with a paid subscription.",why:"Lead-generation marketing spam.",hint:"It offers a commercial report rather than asking you to authenticate."},
+
+    // PHISHING 15+
+    {cat:"phishing",tier:1,from:"Microsoft Security",addr:"security@micr0soft-support.com",sub:"Password expires today",prev:"Keep your account active by confirming your password.",body:"Your mailbox password expires today. Sign in below to avoid losing access.",url:"http://micr0soft-support.com/login",why:"The sender uses micr0soft-support.com, not a Microsoft domain.",hint:"Check the sender domain character by character."},
+    {cat:"phishing",tier:1,from:"IT Helpdesk",addr:"helpdesk@company-it-reset.net",sub:"Mailbox quota exceeded",prev:"Your mailbox is 99% full. Revalidate now.",body:"Your account exceeded storage limits. Authenticate to keep incoming mail flowing.",url:"http://company-it-reset.net/owa",why:"A fake IT domain is asking for credentials.",hint:"Ask whether this login page belongs to your actual organization."},
+    {cat:"phishing",tier:1,from:"Delivery Service",addr:"parcel@fast-delivery-pay.com",sub:"Parcel held - €1.99 fee due",prev:"We could not complete delivery.",body:"Your parcel is on hold. Pay a small redelivery fee within 12 hours.",url:"http://fast-delivery-pay.com/fee",why:"A fake delivery site is collecting payment details.",hint:"Check whether the delivery company and web domain match."},
+    {cat:"phishing",tier:2,from:"BankID",addr:"notice@bankid-verification.se",sub:"BankID temporarily restricted",prev:"Verify your identity to restore service.",body:"We detected unusual activity. Verify your BankID before 18:00 to avoid suspension.",url:"https://bankid-verification.se/secure",why:"BankID does not use this lookalike verification domain.",hint:"Inspect the exact website domain, not the display name."},
+    {cat:"phishing",tier:2,from:"PostNord",addr:"delivery@postnord-support.se",sub:"Delivery preference required",prev:"Choose a pickup point for shipment #PN18425.",body:"Your package requires updated delivery preferences. Confirm your address.",url:"https://postnord-support.se/preferences",why:"The sender domain is not PostNord's legitimate domain.",hint:"Compare the sender domain to the company's real domain."},
+    {cat:"phishing",tier:2,from:"Finance",addr:"accounts@vendor-payments.co",sub:"Updated bank details for invoice 8841",prev:"Please use our new IBAN for all future payments.",body:"Due to a bank migration, our account details changed. Please update the attached invoice before payment.",why:"A bank-detail change request from an unverified external domain is invoice fraud.",hint:"Treat unexpected bank-detail changes as high risk."},
+    {cat:"phishing",tier:2,from:"CEO Office",addr:"executive.office@fastmail-direct.com",sub:"Need this handled privately",prev:"Are you available for a quick confidential purchase?",body:"I am heading into a meeting. Please buy 8 gift cards and send me the codes. Do not call, I need this discreetly.",why:"Executive impersonation asking for gift cards.",hint:"Look for secrecy, urgency, and an unusual payment method."},
+    {cat:"phishing",tier:3,from:"DocuSign",addr:"documents@docusign-share.net",sub:"Action required: Supplier Agreement",prev:"A document is waiting for your signature.",body:"Please review and sign the attached supplier agreement.",url:"https://docusign-share.net/document/4211",why:"The link uses a fake DocuSign-like domain.",hint:"Inspect the signing domain before trusting the brand name."},
+    {cat:"phishing",tier:3,from:"Microsoft 365",addr:"noreply@microsoft365-notice.com",sub:"Shared file: Q3 Forecast.xlsx",prev:"{name} shared a file with you.",body:"{name} invited you to collaborate on Q3 Forecast.xlsx.",url:"https://microsoft365-notice.com/share/291",why:"The sender and link imitate Microsoft but use an unrelated domain.",hint:"Look past the familiar product name and inspect the domain."},
+    {cat:"phishing",tier:3,from:"PostNord",addr:"updates@postnnord.se",sub:"Shipment 5904417 awaiting instructions",prev:"Select home delivery or pickup point.",body:"Your shipment could not be routed automatically. Choose a delivery option to continue.",url:"https://postnnord.se/track/5904417",why:"The domain is postnnord.se with double n, not postnord.se.",hint:"Check the sender domain character by character."},
+    {cat:"phishing",tier:3,from:"Payroll",addr:"payroll@hr-portal-nordic.com",sub:"2026 tax document available",prev:"Open the payroll portal to download your document.",body:"Your annual tax document is ready. Sign in with your work account.",url:"https://hr-portal-nordic.com/login",why:"A generic external portal is asking for work credentials.",hint:"Verify whether payroll really uses this portal."},
+    {cat:"phishing",tier:4,from:"IT Operations",addr:"service@rnicrosoft.com",sub:"New sign-in from Stockholm",prev:"Review recent activity if this was not you.",body:"A new sign-in was detected. Review your recent activity and secure your account if needed.",url:"https://rnicrosoft.com/security/activity",why:"rnicrosoft.com uses 'rn' to imitate 'm' in microsoft.com.",hint:"Check the sender domain character by character."},
+    {cat:"phishing",tier:4,from:"OneDrive",addr:"sharing@onedrive-files.com",sub:"Project Board shared with you",prev:"Open the shared folder to view comments.",body:"A colleague added comments to Project Board. Open the folder to review.",url:"https://onedrive-files.com/open/8214",why:"The link is not on a Microsoft-owned domain.",hint:"Check where the link actually goes."},
+    {cat:"phishing",tier:4,from:"Accounts Payable",addr:"ap@northframe-invoices.com",sub:"RE: Invoice 11883",prev:"Following up on the corrected invoice attached.",body:"Hi,\n\nFollowing up on invoice 11883. We corrected the beneficiary account after our bank merger. Please use the new details.",why:"Boring, plausible invoice wording hides a payment-diversion attempt.",hint:"Bank account changes should be verified through a known channel."},
+    {cat:"phishing",tier:5,from:"SharePoint",addr:"sharepoint@rnicrosoft.com",sub:"Board pack - August",prev:"You have been granted access to a restricted folder.",body:"The board pack has been moved to a restricted SharePoint folder. Open it with your Microsoft 365 account.",url:"https://rnicrosoft.com/sites/board-pack",why:"The domain uses 'rnicrosoft.com', a visual lookalike.",hint:"Check the sender domain character by character."},
+    {cat:"phishing",tier:5,from:"PostNord",addr:"notify@postnord.se.delivery-status.co",sub:"Delivery update",prev:"Your parcel is scheduled for tomorrow.",body:"Your parcel is scheduled for delivery. Confirm where the driver can leave it.",url:"https://postnord.se.delivery-status.co/parcel",why:"The true domain is delivery-status.co; 'postnord.se' is only a subdomain.",hint:"Read domains from right to left to find the real owner."},
+    {cat:"phishing",tier:5,from:"Internal Support",addr:"support@"+internalDomains[0],sub:"Re-authentication after SSO maintenance",prev:"Your session needs to be renewed before the next login.",body:"SSO maintenance completed. Use the link below to re-authenticate your mailbox.",url:"https://login-security-check.example/renew",why:"The sender may look internal, but the login link points to an unrelated domain.",hint:"Check the destination URL, not only the sender."},
+
+    // LEGIT 15+
+    {cat:"legit",tier:1,from:"People Team",addr:"people@{internal}",sub:"Office breakfast on Friday",prev:"Coffee and breakfast from 08:30 in the kitchen.",body:"Hi everyone,\n\nWe are hosting breakfast in the office Friday at 08:30. No action required.",why:"A routine internal message with no risky request.",hint:"Check whether the sender is on your normal internal domain."},
+    {cat:"legit",tier:1,from:"IT",addr:"it@{internal}",sub:"Planned Wi-Fi maintenance tonight",prev:"Brief interruptions expected between 21:00 and 21:20.",body:"The office Wi-Fi will be restarted tonight for maintenance. No password reset is required.",why:"A normal internal maintenance notice.",hint:"Notice that it does not ask you to sign in or provide credentials."},
+    {cat:"legit",tier:1,from:"Calendar",addr:"calendar@{internal}",sub:"Team sync moved to 10:30",prev:"The weekly sync has been shifted by 30 minutes.",body:"The recurring team sync is moved to 10:30 tomorrow. The calendar invitation has been updated.",why:"Routine internal scheduling mail.",hint:"Check the internal sender domain and ordinary content."},
+    {cat:"legit",tier:2,from:"PostNord",addr:"noreply@postnord.se",sub:"Your parcel is ready for pickup",prev:"Collect shipment PN428519 at your selected service point.",body:"Your parcel is ready for pickup. Bring identification and use the PostNord app for details.",url:"https://www.postnord.se/",why:"The sender and link use the legitimate postnord.se domain.",hint:"Verify the exact sender and link domain."},
+    {cat:"legit",tier:2,from:"BankID",addr:"info@bankid.com",sub:"Information about BankID maintenance",prev:"Planned maintenance may affect availability Sunday morning.",body:"BankID services may have brief interruptions during scheduled maintenance. We will never ask you to share your security code.",url:"https://www.bankid.com/",why:"Informational mail from the legitimate bankid.com domain.",hint:"Check the domain and whether it asks for authentication."},
+    {cat:"legit",tier:2,from:"Finance Team",addr:"finance@{internal}",sub:"Reminder: submit July expenses",prev:"Please upload receipts before Tuesday.",body:"Friendly reminder to submit July expenses in the expense system before Tuesday.",why:"Expected internal finance process with no unusual payment request.",hint:"Routine internal process, no changed bank details."},
+    {cat:"legit",tier:2,from:"GitHub",addr:"noreply@github.com",sub:"[GitHub] Password changed successfully",prev:"Your GitHub password was changed.",body:"Your GitHub password was recently changed. If you did not make this change, review your security settings by navigating to GitHub directly.",why:"A legitimate security notification from github.com.",hint:"Security-themed mail can still be legitimate; inspect the real sender domain."},
+    {cat:"legit",tier:3,from:"Microsoft",addr:"account-security-noreply@accountprotection.microsoft.com",sub:"Microsoft account security alert",prev:"We detected a sign-in from a new device.",body:"We noticed a recent sign-in to your Microsoft account. If this was you, no action is needed.",url:"https://account.microsoft.com/",why:"The sender is on Microsoft's legitimate accountprotection.microsoft.com domain.",hint:"Check the registrable domain carefully."},
+    {cat:"legit",tier:3,from:"Slack",addr:"feedback@slack.com",sub:"New sign-in to your Slack workspace",prev:"A sign-in occurred from Chrome on macOS.",body:"A new sign-in to your Slack workspace was detected. Review security from your Slack app if unexpected.",why:"A legitimate notification from slack.com.",hint:"Familiar security warnings are not automatically phishing."},
+    {cat:"legit",tier:3,from:"{name}",addr:"{nameEmail}",sub:"Invoice question",prev:"Could you confirm whether PO 4482 belongs to my project?",body:"Hi,\n\nI received invoice 4482 in the project folder. Can you confirm whether this belongs to my cost center?\n\nThanks.",why:"Normal internal question with no payment diversion or credential request.",hint:"Check what is actually being requested."},
+    {cat:"legit",tier:3,from:"Adobe",addr:"message@adobe.com",sub:"{name} shared a PDF with you",prev:"Open Adobe Acrobat to view the shared document.",body:"{name} shared a PDF for review. You can open Acrobat directly and view it under Shared with you.",why:"Legitimate Adobe notification that does not pressure you to use a suspicious link.",hint:"The safest path is also offered: open the known app directly."},
+    {cat:"legit",tier:4,from:"Accounts Payable",addr:"ap@{internal}",sub:"Vendor bank change requires callback verification",prev:"Do not update payment details until verification is complete.",body:"A supplier requested new bank details. Per policy, do not change the record until the callback verification is completed using the phone number already on file.",why:"Legitimate anti-fraud process communication.",hint:"The message tells you to verify changes, rather than trust them."},
+    {cat:"legit",tier:4,from:"Microsoft Teams",addr:"noreply@email.teams.microsoft.com",sub:"You have missed activity in Microsoft Teams",prev:"There are unread messages in your team.",body:"You have unread Teams activity. Open the Teams application to review it.",why:"A legitimate Microsoft Teams notification.",hint:"Inspect the full domain hierarchy rather than judging the message by appearance."},
+    {cat:"legit",tier:4,from:"PostNord",addr:"noreply@postnord.se",sub:"We could not deliver your parcel",prev:"Your parcel will be moved to a service point.",body:"Delivery was unsuccessful. Your parcel will be sent to the nearest service point. No payment is required.",url:"https://www.postnord.se/track-trace",why:"A plausible delivery failure from the legitimate domain with no fee request.",hint:"A suspicious-looking delivery notice can be real if the domain and request are legitimate."},
+    {cat:"legit",tier:5,from:"Microsoft 365",addr:"no-reply@microsoft.com",sub:"Your organization changed a security setting",prev:"A tenant administrator updated a policy.",body:"Your organization changed a Microsoft 365 security setting. If you have questions, contact your administrator. No action is required.",why:"Legitimate administrative notification from microsoft.com.",hint:"Notice the absence of a credential or payment request."},
+    {cat:"legit",tier:5,from:"{company} Billing",addr:"billing@{companyDomain}",sub:"Invoice 2026-0817",prev:"Monthly subscription invoice attached. Payment due in 30 days.",body:"Hello,\n\nAttached is your regular monthly subscription invoice. Payment terms remain unchanged. Contact your account manager with questions.",why:"A normal recurring vendor invoice with unchanged payment details.",hint:"Legitimate invoices can look boring and external; look for changed details or unusual pressure."},
+    {cat:"legit",tier:5,from:"Security Team",addr:"security@{internal}",sub:"Simulated phishing exercise summary",prev:"Here are the results from this month's simulation.",body:"This month's internal phishing simulation is complete. The report is available in the security dashboard you normally use. No sign-in link is included here.",why:"Routine internal security communication.",hint:"The message avoids embedded login links and points to a known workflow."}
+  ];
+
+  let state;
+  let tickTimer=null;
+  let lastTs=performance.now();
+
+  function materialize(t){
+    const company=c(), name=n();
+    const companyDomain=company.toLowerCase().replace(/[^a-z0-9]/g,"")+".com";
+    const nameEmail=name.toLowerCase().replace(/[^a-z ]/g,"").replace(/ /g,".")+"@"+internalDomain();
+    const internal=internalDomain();
+    const rep = s => (s||"")
+      .replaceAll("{company}",company).replaceAll("{name}",name)
+      .replaceAll("{nameEmail}",nameEmail).replaceAll("{internal}",internal)
+      .replaceAll("{companyDomain}",companyDomain);
+    const priority=Math.random()<0.09;
+    return {...t,id:crypto.randomUUID(),from:rep(t.from),addr:rep(t.addr),sub:rep(t.sub),prev:rep(t.prev),body:rep(t.body),url:rep(t.url),why:rep(t.why),hint:rep(t.hint),views:0,bounced:false,flash:"",explain:"",priority,mistakes:0,lockedUntil:0,committed:false};
+  }
+
+  function reset(){
+    state={
+      score:0,level:1,combo:0,buffer:BUFFER_START,mails:[],
+      correct:{spam:0,phishing:0,legit:0},wrong:{spam:0,phishing:0,legit:0},
+      bounces:0,totalCorrect:0,levelStarted:performance.now(),correctAtLevelStart:0,
+      arrivalCountdown:3,gameOver:false,highest:1,clears:0,lastCount:0
+    };
+    lastTs=performance.now();
+    document.getElementById("gameover").classList.remove("show");
+    render();
+  }
+
+  function intervalForLevel(l){
+    if(l<=2) return 3;
+    if(l<=4) return 2;
+    return Math.max(.8,1.2-(l-5)*.08);
+  }
+  function maxTierForLevel(l){ return l<=2?1:l<=4?3:5; }
+
+  function pickTemplate(){
+    const eligible=pool.filter(x=>x.tier<=maxTierForLevel(state.level));
+    return eligible[Math.floor(Math.random()*eligible.length)];
+  }
+
+  function addMail(){
+    if(state.mails.length>=MAX_SLOTS){ endGame(); return; }
+    state.mails.push(materialize(pickTemplate()));
+    render();
+  }
+
+  function multiplier(){
+    return 1 + Math.min(3, Math.floor(state.combo/5)*0.25);
+  }
+
+  function mistakePressure(level, repeatCount){
+    let base = level<=2 ? 0.6 : level<=4 ? 0.8 : level<=6 ? 1.0 : 1.2;
+    if(repeatCount>=2) base += 1.5;
+    return base;
+  }
+
+  function toast(text){
+    const el=document.getElementById("toast");
+    el.textContent=text;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t=setTimeout(()=>el.classList.remove("show"),900);
+  }
+
+  function classify(id,type){
+    if(state.gameOver) return;
+    const idx=state.mails.findIndex(m=>m.id===id);
+    if(idx<0) return;
+    const m=state.mails[idx];
+    const now=performance.now();
+
+    // One click commits the attempt. Locked or already-committed rows ignore further input.
+    if(m.committed || now < (m.lockedUntil||0)) return;
+    m.committed=true;
+    render();
+
+    if(type===m.cat){
+      m.flash="correct";
+      state.combo++;
+      state.totalCorrect++;
+      state.correct[m.cat]++;
+      const base=m.priority?180:100;
+      const earned=Math.round(base*multiplier());
+      state.score += earned;
+      state.buffer=Math.min(BUFFER_CAP,state.buffer+1);
+      m.scorePop="+"+earned;
+      if(state.combo===5||state.combo===10||state.combo===20||state.combo===30) toast(state.combo+" correct in a row");
+      render();
+      setTimeout(()=>{
+        const j=state.mails.findIndex(x=>x.id===id);
+        if(j>=0) state.mails.splice(j,1);
+        if(state.mails.length===0){
+          const clearBonus=250+state.level*50;
+          state.score+=clearBonus;
+          state.clears++;
+          toast("Inbox cleared  +"+clearBonus);
+          state.buffer=Math.min(BUFFER_CAP,state.buffer+.75);
+        }
+        maybeLevel();
+        render();
+      },170);
+    } else {
+      m.flash="wrong";
+      m.explain=m.why;
+      m.mistakes=(m.mistakes||0)+1;
+      state.combo=0;
+      state.wrong[m.cat]++;
+      state.score=Math.max(0,state.score-75);
+      state.bounces++;
+
+      const pressure=mistakePressure(state.level,m.mistakes);
+      state.arrivalCountdown=Math.max(0,state.arrivalCountdown-pressure);
+
+      m.bounced=true;
+      m.views=Math.max(m.views,1);
+      m.lockedUntil=performance.now()+700;
+      state.mails.splice(idx,1);
+      state.mails.push(m);
+
+      toast("Bounce back  -75  •  next mail "+pressure.toFixed(1)+"s sooner");
+      render();
+
+      setTimeout(()=>{
+        const live=state.mails.find(x=>x.id===id);
+        if(live){
+          live.flash="";
+          live.committed=false;
+        }
+        render();
+      },700);
+    }
+  }
+
+  function maybeLevel(){
+    const now=performance.now();
+    const timeAdvance=(now-state.levelStarted)>=30000;
+    const correctAdvance=(state.totalCorrect-state.correctAtLevelStart)>=15;
+    if(timeAdvance||correctAdvance){
+      state.level++;
+      state.highest=Math.max(state.highest,state.level);
+      state.levelStarted=now;
+      state.correctAtLevelStart=state.totalCorrect;
+      const el=document.getElementById("levelup");
+      el.textContent="Level "+state.level+"  •  "+intervalForLevel(state.level).toFixed(1)+"s arrivals";
+      el.classList.add("show");
+      setTimeout(()=>el.classList.remove("show"),900);
+    }
+  }
+
+  function expandedMail(){
+    return state.mails.find(m=>m.expanded);
+  }
+
+  function tick(ts){
+    const dt=Math.min(.1,(ts-lastTs)/1000); lastTs=ts;
+    if(!state.gameOver){
+      maybeLevel();
+      const exp=expandedMail();
+      const canPause=exp && state.buffer>0;
+      if(exp && state.buffer>0) state.buffer=Math.max(0,state.buffer-dt);
+      if(!canPause){
+        state.arrivalCountdown-=dt;
+        if(state.arrivalCountdown<=0){
+          addMail();
+          state.arrivalCountdown=intervalForLevel(state.level);
+        }
+      }
+      updateHud();
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function toggleExpand(id){
+    const m=state.mails.find(x=>x.id===id);
+    if(!m) return;
+    const was=m.expanded;
+    state.mails.forEach(x=>x.expanded=false);
+    m.expanded=!was;
+    if(m.expanded) m.views++;
+    render();
+  }
+
+  function endGame(){
+    state.gameOver=true;
+    document.getElementById("finalScore").textContent=state.score.toLocaleString();
+    document.getElementById("finalLevel").textContent=state.highest;
+    document.getElementById("finalBounces").textContent=state.bounces;
+    document.getElementById("finalCorrect").textContent=state.totalCorrect;
+    document.getElementById("finalClears").textContent=state.clears;
+    document.getElementById("breakdown").innerHTML=["spam","phishing","legit"].map(k=>
+      `<tr><td>${k[0].toUpperCase()+k.slice(1)}</td><td>${state.correct[k]}</td><td>${state.wrong[k]}</td></tr>`
+    ).join("");
+    document.getElementById("gameover").classList.add("show");
+  }
+
+  function render(){
+    const list=document.getElementById("mailList");
+    if(!state.mails.length){
+      list.innerHTML='<div class="empty">Your inbox is quiet. For now.</div>';
+    } else {
+      list.innerHTML=state.mails.map(m=>{
+        const hint=(m.bounced && m.views>=2)?`<div class="hint">${m.hint}</div>`:"";
+        const locked = m.committed || performance.now() < (m.lockedUntil||0);
+        return `<div class="mail ${m.flash||""} ${m.expanded?"expanded":""} ${m.priority?"hot":""} ${locked?"locked":""}" data-id="${m.id}">
+          ${m.bounced?'<div class="marker">!</div>':""}
+          <div class="mailGrid">
+            <div class="expand">
+              <div class="senderName">${esc(m.from)}</div>
+              <div class="senderAddr">${esc(m.addr)}</div>
+            </div>
+            <div class="expand">
+              <div class="subject">${esc(m.sub)}${m.priority?'<span class="priority">PRIORITY</span>':""}</div>
+              <div class="preview">${esc(m.prev)}</div>
+              ${m.url?`<div class="url">${esc(m.url)}</div>`:""}
+            </div>
+            <div class="actions">
+              <button data-type="spam" ${locked?"disabled":""}>Spam</button>
+              <button data-type="phishing" ${locked?"disabled":""}>Phishing</button>
+              <button data-type="legit" ${locked?"disabled":""}>Legit</button>
+            </div>
+          </div>
+          <div class="body">${esc(m.body)}${hint}${m.explain?`<div class="explain">${esc(m.explain)}</div>`:""}</div>
+          ${m.scorePop?`<div class="scorePop">${esc(m.scorePop)}</div>`:""}
+        </div>`;
+      }).join("");
+    }
+    list.querySelectorAll(".expand").forEach(el=>el.addEventListener("click",e=>{
+      toggleExpand(e.currentTarget.closest(".mail").dataset.id);
+    }));
+    list.querySelectorAll(".actions button").forEach(btn=>btn.addEventListener("click",e=>{
+      e.stopPropagation();
+      const row=e.currentTarget.closest(".mail");
+      classify(row.dataset.id,e.currentTarget.dataset.type);
+    }));
+    updateHud();
+  }
+
+  function updateHud(){
+    document.getElementById("score").textContent=state.score.toLocaleString();
+    document.getElementById("level").textContent=state.level;
+    const comboEl=document.getElementById("combo");
+    comboEl.textContent=state.combo+" ×"+multiplier().toFixed(2);
+    comboEl.classList.toggle("comboFire",state.combo>=10);
+    document.getElementById("bufferText").textContent=state.buffer.toFixed(1)+"s";
+    document.getElementById("bufferFill").style.width=(state.buffer/BUFFER_CAP*100)+"%";
+    document.getElementById("slotText").textContent=state.mails.length+" / "+MAX_SLOTS;
+    document.getElementById("sideCount").textContent=state.mails.length;
+    document.getElementById("fullnessFill").style.width=(state.mails.length/MAX_SLOTS*100)+"%";
+    const fm=document.getElementById("fullnessMetric");
+    fm.classList.toggle("warn",state.mails.length>=5&&state.mails.length<7);
+    fm.classList.toggle("danger",state.mails.length>=7);
+    document.querySelector(".mailbox").classList.toggle("tense",state.mails.length>=7);
+    const paused=expandedMail()&&state.buffer>0;
+    document.getElementById("arrivalText").textContent=paused
+      ? "Arrivals paused while reading"
+      : "Next mail in "+Math.max(0,state.arrivalCountdown).toFixed(1)+"s";
+  }
+
+  function esc(s){
+    return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  document.addEventListener("keydown",e=>{
+    if(state.gameOver||!state.mails.length) return;
+    if(["1","2","3"].includes(e.key)){
+      const map={"1":"spam","2":"phishing","3":"legit"};
+      classify(state.mails[0].id,map[e.key]);
+    }
+  });
+  document.getElementById("restart").addEventListener("click",reset);
+
+  reset();
+  // Seed with three messages so the game starts immediately.
+  addMail(); addMail(); addMail();
+  state.arrivalCountdown=intervalForLevel(state.level);
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

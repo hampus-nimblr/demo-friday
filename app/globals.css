@@ -1,26 +1,620 @@
+/* ============================================================================
+   Nimblr design system — carried over from the platform stylesheet.
+
+   Deltas from the platform copy (keep this list short so the files stay
+   diffable — you should be able to paste a newer platform version over this):
+     • `@import "./typography.css"` dropped — that file lives in the platform repo.
+     • `@fontsource/space-mono` added — the platform gets Space Mono from its
+       own font host; here it comes from npm so `--font-mono` resolves.
+   ============================================================================ */
+
 @import "tailwindcss";
+@import "@fontsource-variable/outfit";
+@import "@fontsource-variable/crimson-pro";
+@import "@fontsource/space-mono";
+
+/* ============================================================================
+   DARK MODE VARIANT
+   Applies dark: utilities when <html> has the .dark class.
+   ============================================================================ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================================
+   COLOR PALETTE — 50–950 scales
+   Brand colors carried over from the existing design system.
+   Hex values kept exact; all registered in @theme so Tailwind generates
+   bg-blue-400, text-orange-600, etc.
+   ============================================================================ */
+
+@theme {
+
+    /* --- Gray (warm-tinted neutral, #918f8a base) --- */
+    --color-gray-50:  #ebebe7;
+    --color-gray-100: #e7e7e6;
+    --color-gray-200: #d2d2cf;
+    --color-gray-300: #b3b3ad;
+    --color-gray-400: #918f8a;
+    --color-gray-500: #716f69;
+    --color-gray-600: #605e5a;
+    --color-gray-700: #51504d;
+    --color-gray-800: #474643;
+    --color-gray-900: #3e3e3b;
+    --color-gray-950: #2e2e2b;
+
+    /* --- Blue (brand primary, #34b9f1 / #15a4e2 base) --- */
+    --color-blue-50:  #f0f9ff;
+    --color-blue-100: #e1f2fd;
+    --color-blue-200: #bce6fb;
+    --color-blue-300: #81d3f8;
+    --color-blue-400: #34b9f1;
+    --color-blue-500: #15a4e2;
+    --color-blue-600: #0884c1;
+    --color-blue-700: #08699c;
+    --color-blue-800: #0b5981;
+    --color-blue-900: #0f4a6b;
+    --color-blue-950: #0a3047;
+
+    /* --- Orange (brand secondary, #fd6f27 base) --- */
+    --color-orange-50:  #fff5ed;
+    --color-orange-100: #ffe8d5;
+    --color-orange-200: #ffcda9;
+    --color-orange-300: #ffaa72;
+    --color-orange-400: #fd6f27;
+    --color-orange-500: #fc5813;
+    --color-orange-600: #ed3d09;
+    --color-orange-700: #c42b0a;
+    --color-orange-800: #9c2310;
+    --color-orange-900: #7d2011;
+    --color-orange-950: #440d06;
+
+    /* --- Yellow (brand tertiary, #ffdd02 base) --- */
+    --color-yellow-50:  #fefde8;
+    --color-yellow-100: #fffec2;
+    --color-yellow-200: #fffa87;
+    --color-yellow-300: #fcee51;
+    --color-yellow-400: #ffdc06;
+    --color-yellow-500: #efc603;
+    --color-yellow-600: #ce9a00;
+    --color-yellow-700: #a46e04;
+    --color-yellow-800: #88550b;
+    --color-yellow-900: #734610;
+    --color-yellow-950: #47290b;
+
+    /* --- Red (destructive / warning, #fc4639 base) --- */
+    --color-red-50:  #fff2f1;
+    --color-red-100: #ffe2e0;
+    --color-red-200: #ffcac6;
+    --color-red-300: #ffa49e;
+    --color-red-400: #ff7167;
+    --color-red-500: #fc4639;
+    --color-red-600: #ea2618;
+    --color-red-700: #c51c10;
+    --color-red-800: #a31b11;
+    --color-red-900: #861d16;
+    --color-red-950: #490a06;
+
+    /* --- Green (success, #00c06a base) --- */
+    --color-green-50:  #eefff6;
+    --color-green-100: #e3fdf1;
+    --color-green-200: #c8fde4;
+    --color-green-300: #76ffc0;
+    --color-green-400: #33f59e;
+    --color-green-500: #09de7e;
+    --color-green-600: #00c06a;
+    --color-green-700: #049153;
+    --color-green-800: #0a7144;
+    --color-green-900: #0a5d3a;
+    --color-green-950: #00341f;
+
+    /* --- Scale aliases (primary, secondary, tertiary, neutral, semantic) ---
+       These let you write bg-primary-400, text-success-700 etc.        */
+    --color-primary-50:   var(--color-yellow-50);
+    --color-primary-100:  var(--color-yellow-100);
+    --color-primary-200:  var(--color-yellow-200);
+    --color-primary-300:  var(--color-yellow-300);
+    --color-primary-400:  var(--color-yellow-400);
+    --color-primary-500:  var(--color-yellow-500);
+    --color-primary-600:  var(--color-yellow-600);
+    --color-primary-700:  var(--color-yellow-700);
+    --color-primary-800:  var(--color-yellow-800);
+    --color-primary-900:  var(--color-yellow-900);
+    --color-primary-950:  var(--color-yellow-950);
+
+    --color-secondary-50:  var(--color-orange-50);
+    --color-secondary-100: var(--color-orange-100);
+    --color-secondary-200: var(--color-orange-200);
+    --color-secondary-300: var(--color-orange-300);
+    --color-secondary-400: var(--color-orange-400);
+    --color-secondary-500: var(--color-orange-500);
+    --color-secondary-600: var(--color-orange-600);
+    --color-secondary-700: var(--color-orange-700);
+    --color-secondary-800: var(--color-orange-800);
+    --color-secondary-900: var(--color-orange-900);
+    --color-secondary-950: var(--color-orange-950);
+
+    --color-tertiary-50:  var(--color-yellow-50);
+    --color-tertiary-100: var(--color-yellow-100);
+    --color-tertiary-200: var(--color-yellow-200);
+    --color-tertiary-300: var(--color-yellow-300);
+    --color-tertiary-400: var(--color-yellow-400);
+    --color-tertiary-500: var(--color-yellow-500);
+    --color-tertiary-600: var(--color-yellow-600);
+    --color-tertiary-700: var(--color-yellow-700);
+    --color-tertiary-800: var(--color-yellow-800);
+    --color-tertiary-900: var(--color-yellow-900);
+    --color-tertiary-950: var(--color-yellow-950);
+
+    --color-neutral-50:  var(--color-gray-50);
+    --color-neutral-100: var(--color-gray-100);
+    --color-neutral-200: var(--color-gray-200);
+    --color-neutral-300: var(--color-gray-300);
+    --color-neutral-400: var(--color-gray-400);
+    --color-neutral-500: var(--color-gray-500);
+    --color-neutral-600: var(--color-gray-600);
+    --color-neutral-700: var(--color-gray-700);
+    --color-neutral-800: var(--color-gray-800);
+    --color-neutral-900: var(--color-gray-900);
+    --color-neutral-950: var(--color-gray-950);
+
+    --color-success-50:  var(--color-green-50);
+    --color-success-100: var(--color-green-100);
+    --color-success-200: var(--color-green-200);
+    --color-success-300: var(--color-green-300);
+    --color-success-400: var(--color-green-400);
+    --color-success-500: var(--color-green-500);
+    --color-success-600: var(--color-green-600);
+    --color-success-700: var(--color-green-700);
+    --color-success-800: var(--color-green-800);
+    --color-success-900: var(--color-green-900);
+    --color-success-950: var(--color-green-950);
+
+    --color-warning-50:  var(--color-red-50);
+    --color-warning-100: var(--color-red-100);
+    --color-warning-200: var(--color-red-200);
+    --color-warning-300: var(--color-red-300);
+    --color-warning-400: var(--color-red-400);
+    --color-warning-500: var(--color-red-500);
+    --color-warning-600: var(--color-red-600);
+    --color-warning-700: var(--color-red-700);
+    --color-warning-800: var(--color-red-800);
+    --color-warning-900: var(--color-red-900);
+    --color-warning-950: var(--color-red-950);
+
+    --color-alert-50:  var(--color-orange-50);
+    --color-alert-100: var(--color-orange-100);
+    --color-alert-200: var(--color-orange-200);
+    --color-alert-300: var(--color-orange-300);
+    --color-alert-400: var(--color-orange-400);
+    --color-alert-500: var(--color-orange-500);
+    --color-alert-600: var(--color-orange-600);
+    --color-alert-700: var(--color-orange-700);
+    --color-alert-800: var(--color-orange-800);
+    --color-alert-900: var(--color-orange-900);
+    --color-alert-950: var(--color-orange-950);
+
+    --color-info-50:  var(--color-blue-50);
+    --color-info-100: var(--color-blue-100);
+    --color-info-200: var(--color-blue-200);
+    --color-info-300: var(--color-blue-300);
+    --color-info-400: var(--color-blue-400);
+    --color-info-500: var(--color-blue-500);
+    --color-info-600: var(--color-blue-600);
+    --color-info-700: var(--color-blue-700);
+    --color-info-800: var(--color-blue-800);
+    --color-info-900: var(--color-blue-900);
+    --color-info-950: var(--color-blue-950);
+
+    /* --- Brand shorthand tokens --- */
+    --color-brand-blue:   #34b9f1;
+    --color-brand-orange: #fd6f27;
+    --color-brand-yellow: #ffdd02;
+    --color-white:        #fefefd;
+    --color-black:        #181816;
+
+}
+
+/* ============================================================================
+   SEMANTIC TOKENS
+   Map palette steps → purpose. Change a step here and dark mode, components,
+   and all utilities update automatically.
+   ============================================================================ */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+    color-scheme: light;
+    /* Surface */
+    --background:             var(--color-gray-100);
+    --foreground:             var(--color-black);
+    --card:                   var(--color-white);
+    --page:                   #e0e0e0;
+    --card-foreground:        var(--color-black);
+    --popover:                var(--color-white);
+    --popover-foreground:     var(--color-black);
+
+    /* Interactive */
+    --primary:                #ffdc06;
+    --primary-foreground:     var(--color-black);
+    --secondary:              var(--color-gray-100);
+    --secondary-foreground:   var(--color-gray-800);
+    --accent:                 var(--color-gray-100);
+    --accent-foreground:      var(--color-gray-800);
+    --muted:                  var(--color-gray-100);
+    --muted-foreground:       var(--color-gray-700);
+    --destructive:            var(--color-red-600);
+    --destructive-foreground: var(--color-white);
+
+    /* Chrome */
+    --border:                 var(--color-gray-100);
+    --input:                  var(--color-gray-200);
+    --ring:                   #ffdc06;
+
+    /* Chart series — used by shadcn chart components (var(--chart-1)…)
+       OKLCH at ~L 0.62 / C 0.14 keeps every series at the same perceptual
+       weight; only the hue rotates. Slot 1 anchors on brand blue, slot 2 on
+       brand orange; slots 3–5 fill in with teal, violet, coral. */
+    --chart-1:                oklch(0.62 0.15 240);   /* brand blue, toned   */
+    --chart-2:                oklch(0.68 0.16  45);   /* brand orange, warm  */
+    --chart-3:                oklch(0.70 0.12 175);   /* teal                */
+    --chart-4:                oklch(0.62 0.16 295);   /* violet              */
+    --chart-5:                oklch(0.66 0.17  20);   /* coral               */
+
+    /* --- Radius ---
+       Component-specific radii from the design system.
+       Use radius-button, radius-card etc. or the generic scale.  */
+    --radius:          12px;
+    --radius-xs:       calc(var(--radius) * 0.33);   /*  4px */
+    --radius-sm:       calc(var(--radius) * 0.67);   /*  8px */
+    --radius-md:       var(--radius);                /* 12px */
+    --radius-lg:       calc(var(--radius) * 1.5);    /* 18px */
+    --radius-xl:       calc(var(--radius) * 2);      /* 24px */
+    --radius-2xl:      calc(var(--radius) * 2.33);   /* 28px */
+    --radius-full:     9999px;
+
+    --radius-box:      8px;
+    --radius-card:     8px;
+    --radius-button:   8px;
+    --radius-input:    8px;
+    --radius-image:    4px;
+    --radius-dialog:   8px;
+    --radius-sheet:    8px;
+    --radius-toast:    8px;
+    --radius-dropmenu: 10px;
+
+    /* --- Shadows --- */
+    --shadow-2xs: 0 1px oklch(0 0 0 / 0.05);
+    --shadow-xs:  0 1px 2px 0 oklch(0 0 0 / 0.05);
+    --shadow-sm:  0 1px 3px 0 oklch(0 0 0 / 0.10), 0 1px 2px -1px oklch(0 0 0 / 0.10);
+    --shadow-md:  0 4px 6px -1px oklch(0 0 0 / 0.10), 0 2px 4px -2px oklch(0 0 0 / 0.10);
+    --shadow-lg:  0 10px 15px -3px oklch(0 0 0 / 0.10), 0 4px 6px -4px oklch(0 0 0 / 0.10);
+    --shadow-xl:  0 20px 25px -5px oklch(0 0 0 / 0.10), 0 8px 10px -6px oklch(0 0 0 / 0.10);
+    --shadow-2xl: 0 25px 50px -12px oklch(0 0 0 / 0.25);
+
+    --shadow-card:     0 0 0 0 transparent;
+    --shadow-button:   0 0 0 0 transparent;
+    --shadow-input:    0 0 0 0 transparent;
+    --shadow-dropmenu: 0 20px 25px -5px oklch(0 0 0 / 0.10), 0 8px 10px -6px oklch(0 0 0 / 0.10);
+    --shadow-dialog:   0 0 0 0 transparent;
+
+    /* --- Easing (from design system) --- */
+    --ease-default:  cubic-bezier(0.77,  0,    0.175, 1);
+    --ease-in:       cubic-bezier(0.895, 0.03, 0.685, 0.22);
+    --ease-out:      cubic-bezier(0.165, 0.84, 0.44,  1);
+    --ease-in-out:   cubic-bezier(0.77,  0,    0.175, 1);
+
+    /* --- Transitions --- */
+    --duration-fast: 150ms;
+    --duration-base: 200ms;
+    --duration-slow: 300ms;
 }
+
+.dark {
+    /* Surface */
+    --background:             var(--color-gray-900);
+    --foreground:             var(--color-gray-100);
+    --card:                   var(--color-gray-900);
+    --page:                   var(--color-gray-950);
+    --card-foreground:        var(--color-gray-100);
+    --popover:                var(--color-gray-900);
+    --popover-foreground:     var(--color-gray-100);
+
+    /* Interactive */
+    --primary:                #ffdc06;
+    --primary-foreground:     var(--color-gray-950);
+    --secondary:              var(--color-gray-800);
+    --secondary-foreground:   var(--color-gray-100);
+    --accent:                 var(--color-gray-800);
+    --accent-foreground:      var(--color-gray-100);
+    --muted:                  var(--color-gray-800);
+    --muted-foreground:       var(--color-gray-400);
+    --destructive:            var(--color-red-500);
+    --destructive-foreground: var(--color-white);
+
+    /* Chrome */
+    --border:                 var(--color-gray-800);
+    --input:                  var(--color-gray-800);
+    --ring:                   #ffdc06;
+
+    /* Chart series (dark) — same hues, lifted lightness for contrast on dark */
+    --chart-1:                oklch(0.72 0.14 240);
+    --chart-2:                oklch(0.76 0.14  45);
+    --chart-3:                oklch(0.78 0.10 175);
+    --chart-4:                oklch(0.72 0.15 295);
+    --chart-5:                oklch(0.74 0.15  20);
+
+    /* Shadows (higher opacity on dark) */
+    --shadow-2xs: 0 1px oklch(0 0 0 / 0.30);
+    --shadow-xs:  0 1px 2px 0 oklch(0 0 0 / 0.30);
+    --shadow-sm:  0 1px 3px 0 oklch(0 0 0 / 0.40), 0 1px 2px -1px oklch(0 0 0 / 0.40);
+    --shadow-md:  0 4px 6px -1px oklch(0 0 0 / 0.40), 0 2px 4px -2px oklch(0 0 0 / 0.40);
+    --shadow-lg:  0 10px 15px -3px oklch(0 0 0 / 0.40), 0 4px 6px -4px oklch(0 0 0 / 0.40);
+    --shadow-xl:  0 20px 25px -5px oklch(0 0 0 / 0.40), 0 8px 10px -6px oklch(0 0 0 / 0.40);
+    --shadow-2xl: 0 25px 50px -12px oklch(0 0 0 / 0.60);
+
+    --shadow-dropmenu: 0 20px 25px -5px oklch(0 0 0 / 0.40), 0 8px 10px -6px oklch(0 0 0 / 0.40);
+}
+
+/* ============================================================================
+   TAILWIND THEME
+   @theme inline maps semantic tokens → Tailwind utilities.
+   Typography, radius scale, shadows, and easing all carried from design system.
+   ============================================================================ */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+    /* --- Typography --- */
+    --font-sans:    'Outfit Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-crimson: 'Crimson Pro Variable', ui-serif, Georgia, serif;
+    --font-serif:   'Outfit Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono:    'Space Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --font-display: 'Outfit Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --default-font-family: var(--font-sans);
+    --default-mono-font-family: var(--font-mono);
+
+    /* Text sizes (custom scale from design system) */
+    --text-xs:   0.75rem;   --text-xs--line-height:   1.333;
+    --text-sm:   0.8125rem; --text-sm--line-height:   1.538;
+    --text-base: 1rem;      --text-base--line-height: 1.5;
+    --text-lg:   1.125rem;  --text-lg--line-height:   1.556;
+    --text-xl:   1.25rem;   --text-xl--line-height:   1.4;
+    --text-2xl:  1.5rem;    --text-2xl--line-height:  1.333;
+    --text-3xl:  1.8125rem; --text-3xl--line-height:  1.2;
+    --text-4xl:  2.1rem;    --text-4xl--line-height:  1.1;
+    --text-5xl:  3rem;      --text-5xl--line-height:  1;
+    --text-6xl:  3.75rem;   --text-6xl--line-height:  1;
+
+    /* Font weights (collapsed to 400/500/700) */
+    --font-weight-thin:       400;
+    --font-weight-extralight: 400;
+    --font-weight-light:      400;
+    --font-weight-normal:     400;
+    --font-weight-medium:     500;
+    --font-weight-semibold:   500;
+    --font-weight-bold:       700;
+    --font-weight-extrabold:  700;
+    --font-weight-black:      700;
+
+    /* Letter spacing */
+    --tracking-tighter: -0.05em;
+    --tracking-tight:   -0.025em;
+    --tracking-normal:   0em;
+    --tracking-wide:     0.10em;
+    --tracking-wider:    0.15em;
+    --tracking-widest:   0.25em;
+
+    /* Line heights */
+    --leading-tight:   1.25;
+    --leading-snug:    1.375;
+    --leading-normal:  1.5;
+    --leading-relaxed: 1.625;
+    --leading-loose:   2;
+
+    /* --- Semantic color utilities --- */
+    --color-background:             var(--background);
+    --color-foreground:             var(--foreground);
+    --color-card:                   var(--card);
+    --color-page:                   var(--page);
+    --color-card-foreground:        var(--card-foreground);
+    --color-popover:                var(--popover);
+    --color-popover-foreground:     var(--popover-foreground);
+    --color-primary:                var(--primary);
+    --color-primary-foreground:     var(--primary-foreground);
+    --color-secondary:              var(--secondary);
+    --color-secondary-foreground:   var(--secondary-foreground);
+    --color-accent:                 var(--accent);
+    --color-accent-foreground:      var(--accent-foreground);
+    --color-muted:                  var(--muted);
+    --color-muted-foreground:       var(--muted-foreground);
+    --color-destructive:            var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border:                 var(--border);
+    --color-input:                  var(--input);
+    --color-ring:                   var(--ring);
+
+    /* --- Radius --- */
+    --radius-xs:       var(--radius-xs);
+    --radius-sm:       var(--radius-sm);
+    --radius-md:       var(--radius-md);
+    --radius-lg:       var(--radius-lg);
+    --radius-xl:       var(--radius-xl);
+    --radius-2xl:      var(--radius-2xl);
+    --radius-full:     var(--radius-full);
+    --radius-button:   var(--radius-button);
+    --radius-card:     var(--radius-card);
+    --radius-input:    var(--radius-input);
+    --radius-dialog:   var(--radius-dialog);
+    --radius-sheet:    var(--radius-sheet);
+    --radius-toast:    var(--radius-toast);
+    --radius-dropmenu: var(--radius-dropmenu);
+    --radius-image:    var(--radius-image);
+
+    /* --- Shadows --- */
+    --shadow-2xs:     var(--shadow-2xs);
+    --shadow-xs:      var(--shadow-xs);
+    --shadow-sm:      var(--shadow-sm);
+    --shadow-md:      var(--shadow-md);
+    --shadow-lg:      var(--shadow-lg);
+    --shadow-xl:      var(--shadow-xl);
+    --shadow-2xl:     var(--shadow-2xl);
+    --shadow-card:    var(--shadow-card);
+    --shadow-button:  var(--shadow-button);
+    --shadow-input:   var(--shadow-input);
+    --shadow-dropmenu: var(--shadow-dropmenu);
+    --shadow-dialog:  var(--shadow-dialog);
+
+    /* --- Easing --- */
+    --ease-default:  var(--ease-default);
+    --ease-in:       var(--ease-in);
+    --ease-out:      var(--ease-out);
+    --ease-in-out:   var(--ease-in-out);
+
+    /* --- Default transitions --- */
+    --default-transition-duration:        var(--duration-base);
+    --default-transition-timing-function: var(--ease-default);
+
+    /* --- Default ring --- */
+    --default-ring-width: 2px;
+    --default-ring-color: var(--ring);
+
+    /* --- Breakpoints (unchanged from design system) --- */
+    --breakpoint-sm:  40rem;
+    --breakpoint-md:  48rem;
+    --breakpoint-lg:  64rem;
+    --breakpoint-xl:  80rem;
+    --breakpoint-2xl: 96rem;
+
+    /* --- Blur scale --- */
+    --blur-xs:  4px;
+    --blur-sm:  8px;
+    --blur-md:  12px;
+    --blur-lg:  16px;
+    --blur-xl:  24px;
+    --blur-2xl: 40px;
+    --blur-3xl: 64px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ============================================================================
+   BASE — Element defaults
+   ============================================================================ */
+
+@layer base {
+    *, *::before, *::after {
+        border-color: var(--border);
+        box-sizing: border-box;
+    }
+
+    html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+        scrollbar-width: none;
+    }
+
+    html::-webkit-scrollbar {
+        display: none;
+    }
+
+    body {
+        background-color: var(--background);
+        color: var(--foreground);
+        font-family: var(--font-sans);
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    button, [role="button"], [role="menuitem"], a, select, label[for], input[type="checkbox"], input[type="radio"], input[type="file"] {
+        cursor: pointer !important;
+    }
+
+    :focus-visible {
+        outline: var(--default-ring-width) solid var(--ring);
+        outline-offset: 2px;
+    }
+
+    /* Theme transition — smooth sweep, no flash */
+    html.transitioning,
+    html.transitioning * {
+        transition:
+            background-color var(--duration-slow) var(--ease-default),
+            border-color     var(--duration-slow) var(--ease-default),
+            color            var(--duration-fast) var(--ease-default) !important;
+    }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ============================================================================
+   UTILITIES
+   ============================================================================ */
+
+@layer utilities {
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    @keyframes guide-highlight {
+        0%, 49.99% {
+            outline-color: var(--color-primary);
+        }
+        50%, 100% {
+            outline-color: transparent;
+        }
+    }
+    .animate-guide-highlight {
+        outline-width: 2px;
+        outline-style: solid;
+        outline-offset: 0;
+        /* 3 blinks over 3s (1 flick/sec) via iteration-count instead of hand-computed % breakpoints. */
+        animation: guide-highlight 1s steps(1) 3 forwards;
+    }
+}
+
+/* ============================================================================
+   GAME-LOCAL ADDITIONS
+   Motion the platform doesn't need. Kept below the design system so the block
+   above stays a clean paste target.
+   ============================================================================ */
+
+@layer utilities {
+    /* A newly arrived mail slides up into its slot. */
+    @keyframes mail-arrive {
+        from { opacity: 0; transform: translateY(0.75rem); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-mail-arrive {
+        animation: mail-arrive var(--duration-slow) var(--ease-out) both;
+    }
+
+    /* A misclassified mail shakes as it bounces back to the bottom. */
+    @keyframes mail-bounce {
+        0%, 100% { transform: translateX(0); }
+        20%      { transform: translateX(-4px); }
+        40%      { transform: translateX(4px); }
+        60%      { transform: translateX(-2px); }
+        80%      { transform: translateX(2px); }
+    }
+    .animate-mail-bounce {
+        animation: mail-bounce 320ms var(--ease-default) both;
+    }
+
+    /* A compact, arcade-style callout for combo milestones. */
+    @keyframes arcade-pop {
+        0%   { opacity: 0; transform: translateY(10px) scale(0.72) rotate(-4deg); }
+        55%  { opacity: 1; transform: translateY(-3px) scale(1.08) rotate(-4deg); }
+        100% { opacity: 1; transform: translateY(0) scale(1) rotate(-4deg); }
+    }
+    .animate-arcade-pop {
+        animation: arcade-pop 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .animate-mail-arrive,
+        .animate-mail-bounce,
+        .animate-arcade-pop {
+            animation: none;
+        }
+    }
 }

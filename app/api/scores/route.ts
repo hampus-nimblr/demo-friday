@@ -82,12 +82,37 @@ async function trimBoard(): Promise<void> {
   // Intentionally left to you.
 }
 
+/**
+ * The ZSET stores one member per *run*, so a player who plays five times owns
+ * five rows. The board shows people, not attempts: keep each player's best run
+ * and drop the rest.
+ *
+ * Names are folded to lowercase for grouping so "Hampus" and "hampus" don't
+ * split into two rows — but the entry that wins keeps its own casing, so the
+ * board displays the name as that player typed it.
+ */
+function bestPerName(scores: Score[]): Score[] {
+  const best = new Map<string, Score>();
+  for (const entry of scores) {
+    const key = entry.name.toLowerCase();
+    const current = best.get(key);
+    const wins =
+      !current ||
+      entry.score > current.score ||
+      (entry.score === current.score && entry.cleared > current.cleared);
+    if (wins) best.set(key, entry);
+  }
+  return [...best.values()];
+}
+
 export async function GET() {
   try {
-    const members = await getRedis().zrange(KEY, 0, 19, { rev: true });
-    const scores = members
-      .map(toScore)
-      .filter((entry): entry is Score => entry !== null)
+    // 0..-1 is the whole board — the client scrolls it rather than showing a
+    // truncated top-N, so the read can't be capped here either.
+    const members = await getRedis().zrange(KEY, 0, -1, { rev: true });
+    const scores = bestPerName(
+      members.map(toScore).filter((entry): entry is Score => entry !== null),
+    )
       // The ZSET orders by points alone; break ties on mails cleared, as before.
       .sort((a, b) => b.score - a.score || b.cleared - a.cleared);
     return NextResponse.json(scores);

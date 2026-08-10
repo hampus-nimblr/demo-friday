@@ -319,7 +319,14 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
         </div>
 
         {status !== "running" && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 px-6 backdrop-blur-sm">
+          /*
+            The overlay blurs the whole board behind it, which is why the aside's
+            leaderboard is invisible while idle. Rather than punch a hole in the
+            backdrop, the overlay carries its own copy alongside the dialog — and
+            scrolls itself, so a long board plus a tall dialog can't overflow.
+          */
+          <div className="absolute inset-0 overflow-y-auto bg-background/80 px-4 py-6 backdrop-blur-sm sm:px-6">
+            <div className="mx-auto flex min-h-full max-w-4xl flex-col items-center justify-center gap-4 lg:flex-row lg:items-start">
             <div className="w-full max-w-md rounded-dialog border border-border bg-card p-6 text-center shadow-dialog">
               {status === "idle" ? (
                 <>
@@ -422,6 +429,19 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
                 {status === "idle" ? "Start game" : "Play again"}
               </button>
             </div>
+
+            <div className="w-full max-w-md lg:w-72 lg:max-w-none lg:shrink-0">
+              <LiveLeaderboard
+                scores={scores}
+                playerName={activePlayer}
+                score={state.score}
+                cleared={state.handled}
+                combo={state.combo}
+                active={false}
+                showLive={false}
+              />
+            </div>
+            </div>
           </div>
         )}
       </main>
@@ -463,6 +483,12 @@ function LiveLeaderboard({
   cleared,
   combo,
   active,
+  /**
+   * The live-score bay only earns its space while a run is on screen. The
+   * landing and game-over overlays sit next to a dialog that already states the
+   * score, so they render the board as a pure hall of fame.
+   */
+  showLive = true,
 }: {
   scores: ScoreEntry[];
   playerName: string;
@@ -470,6 +496,7 @@ function LiveLeaderboard({
   cleared: number;
   combo: number;
   active: boolean;
+  showLive?: boolean;
 }) {
   return (
     <section className="overflow-hidden rounded-[1.25rem] border-2 border-primary-400 bg-card shadow-lg">
@@ -488,6 +515,7 @@ function LiveLeaderboard({
         </div>
       </div>
 
+      {showLive && (
       <div className="m-3 rounded-card bg-foreground p-3 text-background shadow-md">
         <div className="flex items-center justify-between gap-2">
           <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-primary-300">
@@ -512,17 +540,30 @@ function LiveLeaderboard({
           </span>
         </div>
       </div>
+      )}
 
-      <div className="flex items-center justify-between px-4 pb-2">
+      <div className={`flex items-center justify-between px-4 pb-2 ${showLive ? "" : "pt-3"}`}>
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Hall of fame</p>
-        <span className="text-xs">✦</span>
+        <span className="font-mono text-[10px] font-bold tabular-nums text-muted-foreground">
+          {scores.length} {scores.length === 1 ? "pilot" : "pilots"}
+        </span>
       </div>
-      <ol className="space-y-1 px-3 pb-3">
+      {/*
+        Every pilot on the board, scrolled rather than truncated. The height is
+        capped in viewport units as well as rem so a tall board can't push the
+        start button off screen inside the overlay.
+      */}
+      <ol className="max-h-[min(22rem,42vh)] space-y-1 overflow-y-auto overscroll-contain px-3 pb-3">
         {scores.length > 0 ? (
-          scores.slice(0, 8).map((entry, index) => (
+          scores.map((entry, index) => (
             <li
-              key={`${entry.name}-${entry.score}-${index}`}
-              className="flex items-center gap-2 rounded-card border border-transparent px-2 py-2 text-sm even:bg-secondary hover:border-primary-300"
+              // One row per player now, so the name alone identifies the row.
+              key={entry.name}
+              className={`flex items-center gap-2 rounded-card border px-2 py-2 text-sm even:bg-secondary hover:border-primary-300 ${
+                entry.name.toLowerCase() === playerName.trim().toLowerCase()
+                  ? "border-primary bg-primary-50 dark:bg-primary-950/50"
+                  : "border-transparent"
+              }`}
             >
               <span className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${
                 index === 0

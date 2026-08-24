@@ -1,6 +1,7 @@
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 
+import { keyFor, normalizeBoard } from "@/app/board";
 import { isValidEmail } from "@/app/email";
 
 export const runtime = "nodejs";
@@ -32,13 +33,26 @@ type Score = {
 type PublicScore = Omit<Score, "email">;
 
 /**
- * One sorted set holds the whole board: the member is the run, the ZSET score
- * is the player's points. Ranking is a property of the store, so concurrent
- * finishes can never overwrite each other the way a read-modify-write JSON
- * file did. Version the key so a scoring change can start a fresh season.
+ * One sorted set per board: the member is the run, the ZSET score is the
+ * player's points. Ranking is a property of the store, so concurrent finishes
+ * can never overwrite each other the way a read-modify-write JSON file did.
+ * The key is versioned so a scoring change can start a fresh season, and
+ * suffixed per board so `/polan` and `/` never see each other's runs — see
+ * keyFor() in app/board.ts.
  */
-const KEY = "leaderboard:v1";
 const BOARD_LIMIT = 100;
+
+/**
+ * Which board a request is talking about.
+ *
+ * Both verbs read it from `?board=`, not from the request path — the API lives
+ * at a fixed route while the board comes from the *page's* URL, so the client
+ * has to say which one it is on. Absent means the house board, which keeps old
+ * clients and a bare `curl /api/scores` working.
+ */
+function boardFrom(request: Request): string | null {
+  return normalizeBoard(new URL(request.url).searchParams.get("board"));
+}
 
 /**
  * Built per request rather than at module scope. Module-level construction runs
@@ -134,8 +148,11 @@ function safeParse(raw: string): unknown {
  * *players*, so one strong player with many runs can occupy every surviving slot
  * and evict everyone else — the board would collapse to a handful of rows.
  */
-async function trimBoard(): Promise<void> {
-  // Intentionally left to you.
+async function trimBoard(key: string): Promise<void> {
+  // Intentionally left to you. Note the parameter: retention is now per board,
+  // so whatever policy you pick applies to each campaign independently — and
+  // the number of boards is itself unbounded (see ALLOWED in app/board.ts).
+  void key;
 }
 
 /**
@@ -161,11 +178,16 @@ function bestPerName(scores: Score[]): Score[] {
   return [...best.values()];
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const board = boardFrom(request);
+  // An unusable slug gets an empty board rather than the house board's runs —
+  // falling back would quietly show one campaign's scores under another's name.
+  if (!board) return NextResponse.json([]);
+
   try {
     // 0..-1 is the whole board — the client scrolls it rather than showing a
     // truncated top-N, so the read can't be capped here either.
-    const members = await getRedis().zrange(KEY, 0, -1, { rev: true });
+    const members = await getRedis().zrange(keyFor(board), 0, -1, { rev: true });
     const scores: PublicScore[] = bestPerName(
       members.map(toScore).filter((entry): entry is Score => entry !== null),
     )
@@ -180,6 +202,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const board = boardFrom(request);
+  // Writes get a hard error where reads degrade: a run posted against a bad
+  // slug would otherwise land on a board nobody is looking at.
+  if (!board) return NextResponse.json({ error: "Unknown board" }, { status: 404 });
+
   const body = (await request.json()) as Partial<Score>;
   const name = body.name?.trim().replace(/\s+/g, " ");
   // Lowercased so the same person typing "H@x.se" and "h@x.se" is one contact.
@@ -214,8 +241,9 @@ export async function POST(request: Request) {
   };
 
   try {
-    await getRedis().zadd(KEY, { score: entry.score, member: JSON.stringify(entry) });
-    await trimBoard();
+    const key = keyFor(board);
+    await getRedis().zadd(key, { score: entry.score, member: JSON.stringify(entry) });
+    await trimBoard(key);
   } catch (error) {
     // Surface the failure so the client can tell the player, instead of the
     // run vanishing silently.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { DEFAULT_BOARD, boardLabel } from "./board";
 import { isValidEmail } from "./email";
 import { VERDICTS, type MailTemplate, type Verdict } from "./mail-pool";
 import {
@@ -41,7 +42,20 @@ type ScoreEntry = {
   bestCombo: number;
 };
 
-export default function Inbox({ pool }: { pool: MailTemplate[] }) {
+export default function Inbox({
+  pool,
+  board = DEFAULT_BOARD,
+}: {
+  pool: MailTemplate[];
+  board?: string;
+}) {
+  /**
+   * The API route is shared by every board, so which one this page belongs to
+   * has to ride along on the request. Read straight off the prop rather than
+   * from location.pathname — the server already validated it, and parsing the
+   * URL again on the client would be a second, drifting source of truth.
+   */
+  const boardQuery = `?board=${encodeURIComponent(board)}`;
   const { state, dispatch, start } = useInboxGame(pool);
   const { slots, expandedUid, status } = state;
   const audioContext = useRef<AudioContext | null>(null);
@@ -74,11 +88,11 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
   }
 
   useEffect(() => {
-    void fetch("/api/scores")
+    void fetch(`/api/scores${boardQuery}`)
       .then((response) => response.ok ? response.json() : [])
       .then((entries: ScoreEntry[]) => setScores(entries))
       .catch(() => undefined);
-  }, []);
+  }, [boardQuery]);
 
   // Number keys always act on the first mail in the inbox for quick triage.
   useEffect(() => {
@@ -158,19 +172,27 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
       cleared: state.handled,
       bestCombo: state.bestCombo,
     };
-    void fetch("/api/scores", {
+    void fetch(`/api/scores${boardQuery}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(entry),
     })
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then(() =>
-        fetch("/api/scores")
+        fetch(`/api/scores${boardQuery}`)
           .then((response) => response.ok ? response.json() : [])
           .then((entries: ScoreEntry[]) => setScores(entries)),
       )
       .catch(() => undefined);
-  }, [activeEmail, activePlayer, state.bestCombo, state.handled, state.score, status]);
+  }, [
+    activeEmail,
+    activePlayer,
+    boardQuery,
+    state.bestCombo,
+    state.handled,
+    state.score,
+    status,
+  ]);
 
   function handleStart() {
     const name = playerName.trim();
@@ -223,6 +245,7 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
           <aside className="order-2 w-full shrink-0 lg:sticky lg:top-5 lg:order-1 lg:w-64">
             <LiveLeaderboard
               scores={scores}
+              board={board}
               playerName={activePlayer}
               score={state.score}
               cleared={state.handled}
@@ -479,6 +502,7 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
             <div className="w-full max-w-md lg:w-72 lg:max-w-none lg:shrink-0">
               <LiveLeaderboard
                 scores={scores}
+                board={board}
                 playerName={activePlayer}
                 score={state.score}
                 cleared={state.handled}
@@ -524,6 +548,7 @@ function GameStat({
 
 function LiveLeaderboard({
   scores,
+  board,
   playerName,
   score,
   cleared,
@@ -537,6 +562,7 @@ function LiveLeaderboard({
   showLive = true,
 }: {
   scores: ScoreEntry[];
+  board: string;
   playerName: string;
   score: number;
   cleared: number;
@@ -589,7 +615,13 @@ function LiveLeaderboard({
       )}
 
       <div className={`flex items-center justify-between px-4 pb-2 ${showLive ? "" : "pt-3"}`}>
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Hall of fame</p>
+        {/*
+          Named so a campaign board is visibly its own thing — otherwise /polan
+          and / are indistinguishable apart from the rows themselves.
+        */}
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+          {board === DEFAULT_BOARD ? "Hall of fame" : `${boardLabel(board)} · hall of fame`}
+        </p>
         <span className="font-mono text-[10px] font-bold tabular-nums text-muted-foreground">
           {scores.length} {scores.length === 1 ? "pilot" : "pilots"}
         </span>

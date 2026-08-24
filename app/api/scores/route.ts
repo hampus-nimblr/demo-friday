@@ -1,17 +1,35 @@
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 
+import { isValidEmail } from "@/app/email";
+
 export const runtime = "nodejs";
 /** The board changes on every run, so nothing here may be cached. */
 export const dynamic = "force-dynamic";
 
+/**
+ * The shape held in the store. `email` is collected when a pilot starts a run
+ * and stays server-side — it is deliberately absent from PublicScore below.
+ */
 type Score = {
   name: string;
+  email: string;
   score: number;
   cleared: number;
   bestCombo: number;
   playedAt: string;
 };
+
+/**
+ * The shape GET is allowed to serve.
+ *
+ * Stored and served are separate types on purpose. The board is world-readable
+ * and `force-dynamic`, so anything that reaches this response is public — and
+ * GET used to hand the stored objects straight to NextResponse.json. Omitting
+ * `email` here turns "did we remember to strip it?" into a compile error, and
+ * does the same for the next private field someone adds to Score.
+ */
+type PublicScore = Omit<Score, "email">;
 
 /**
  * One sorted set holds the whole board: the member is the run, the ZSET score
@@ -56,11 +74,43 @@ function toScore(member: unknown): Score | null {
   if (typeof entry.name !== "string" || typeof entry.score !== "number") return null;
   return {
     name: entry.name,
+    // Runs written before email collection (and the two seeded from
+    // data/scores.json) have no address. They are still valid board entries,
+    // so default rather than reject.
+    email: typeof entry.email === "string" ? entry.email : "",
     score: entry.score,
     cleared: entry.cleared ?? 0,
     bestCombo: entry.bestCombo ?? 0,
     playedAt: entry.playedAt ?? "",
   };
+}
+
+/**
+ * Strips an address out of text on its way to the client. Only applied to error
+ * strings, where the address can turn up because the driver quoted the command
+ * that failed — the member it choked on is now PII.
+ */
+/**
+ * The single gate between the stored shape and the wire. Every response body
+ * goes through here, so there is exactly one place to audit.
+ *
+ * Listing the fields rather than deleting `email` is what keeps the boundary
+ * honest in both directions: a new *public* field on Score fails to compile
+ * until it is added here, and a new *private* one is simply never copied.
+ */
+function toPublic(entry: Score): PublicScore {
+  return {
+    name: entry.name,
+    score: entry.score,
+    cleared: entry.cleared,
+    bestCombo: entry.bestCombo,
+    playedAt: entry.playedAt,
+  };
+}
+
+function redact(message: string, email: string): string {
+  if (!email) return message;
+  return message.split(email).join("[email redacted]");
 }
 
 function safeParse(raw: string): unknown {
@@ -74,9 +124,15 @@ function safeParse(raw: string): unknown {
 /**
  * Keeps the board from growing without bound.
  *
- * TODO(you): decide the retention policy — see the note in chat. Trimming to
- * the top BOARD_LIMIT runs is cheap and keeps reads fast, but it permanently
- * discards a player's early attempts once the board fills up.
+ * This matters more than it did: GET now reads the entire ZSET (0..-1) on every
+ * request because the board shows all players, and `force-dynamic` means no
+ * response is ever cached. Board size is now read cost.
+ *
+ * TODO(you): decide the retention policy — see the note in chat. The obvious
+ * move is ZREMRANGEBYRANK down to the top BOARD_LIMIT runs, but note how that
+ * interacts with bestPerName(): trimming ranks *runs* while the board displays
+ * *players*, so one strong player with many runs can occupy every surviving slot
+ * and evict everyone else — the board would collapse to a handful of rows.
  */
 async function trimBoard(): Promise<void> {
   // Intentionally left to you.
@@ -110,11 +166,12 @@ export async function GET() {
     // 0..-1 is the whole board — the client scrolls it rather than showing a
     // truncated top-N, so the read can't be capped here either.
     const members = await getRedis().zrange(KEY, 0, -1, { rev: true });
-    const scores = bestPerName(
+    const scores: PublicScore[] = bestPerName(
       members.map(toScore).filter((entry): entry is Score => entry !== null),
     )
       // The ZSET orders by points alone; break ties on mails cleared, as before.
-      .sort((a, b) => b.score - a.score || b.cleared - a.cleared);
+      .sort((a, b) => b.score - a.score || b.cleared - a.cleared)
+      .map(toPublic);
     return NextResponse.json(scores);
   } catch (error) {
     console.error("Leaderboard read failed", error);
@@ -125,6 +182,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = (await request.json()) as Partial<Score>;
   const name = body.name?.trim().replace(/\s+/g, " ");
+  // Lowercased so the same person typing "H@x.se" and "h@x.se" is one contact.
+  const email = body.email?.trim().toLowerCase();
   const score = body.score;
   const cleared = body.cleared;
   const bestCombo = body.bestCombo;
@@ -132,6 +191,8 @@ export async function POST(request: Request) {
   if (
     !name ||
     name.length > 24 ||
+    !email ||
+    !isValidEmail(email) ||
     typeof score !== "number" ||
     typeof cleared !== "number" ||
     typeof bestCombo !== "number" ||
@@ -144,6 +205,7 @@ export async function POST(request: Request) {
 
   const entry: Score = {
     name,
+    email,
     score: Math.max(0, score),
     cleared: Math.max(0, cleared),
     bestCombo: Math.max(0, bestCombo),
@@ -162,12 +224,16 @@ export async function POST(request: Request) {
       {
         error: "Could not save score",
         // Echoed so a broken deploy can be diagnosed from the response itself
-        // rather than by hunting through Vercel logs. No secrets in here.
-        detail: error instanceof Error ? error.message : String(error),
+        // rather than by hunting through Vercel logs. No secrets in here —
+        // but an Upstash error can quote the command it choked on, and the
+        // member is now PII, so scrub the address before it goes out.
+        detail: redact(error instanceof Error ? error.message : String(error), entry.email),
       },
       { status: 502 },
     );
   }
 
-  return NextResponse.json(entry, { status: 201 });
+  // The client only needs its run back to render it; it already knows the
+  // address it just typed, and this response is as public as GET's.
+  return NextResponse.json(toPublic(entry), { status: 201 });
 }

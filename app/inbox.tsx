@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isValidEmail } from "./email";
 import { VERDICTS, type MailTemplate, type Verdict } from "./mail-pool";
 import {
   BUFFER_CAP,
@@ -29,6 +30,10 @@ const VERDICT_TONE: Record<Verdict, string> = {
   legit: "hover:border-success-600 hover:bg-green-50 hover:text-success-700 dark:hover:bg-green-950/40 dark:hover:text-success-400",
 };
 
+/**
+ * Exactly what /api/scores serves. No `email` — the route strips it before
+ * responding, because the board is public. Don't add it here expecting data.
+ */
 type ScoreEntry = {
   name: string;
   score: number;
@@ -43,7 +48,9 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
   const musicTimer = useRef<number | null>(null);
   const submittedRun = useRef(false);
   const [playerName, setPlayerName] = useState("");
+  const [playerEmail, setPlayerEmail] = useState("");
   const [activePlayer, setActivePlayer] = useState("");
+  const [activeEmail, setActiveEmail] = useState("");
   const [scores, setScores] = useState<ScoreEntry[]>([]);
 
   function getAudioContext() {
@@ -146,6 +153,7 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
     submittedRun.current = true;
     const entry = {
       name: activePlayer,
+      email: activeEmail,
       score: state.score,
       cleared: state.handled,
       bestCombo: state.bestCombo,
@@ -162,15 +170,21 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
           .then((entries: ScoreEntry[]) => setScores(entries)),
       )
       .catch(() => undefined);
-  }, [activePlayer, state.bestCombo, state.handled, state.score, status]);
+  }, [activeEmail, activePlayer, state.bestCombo, state.handled, state.score, status]);
 
   function handleStart() {
     const name = playerName.trim();
-    if (!name) return;
+    const email = playerEmail.trim().toLowerCase();
+    if (!name || !isValidEmail(email)) return;
     const context = getAudioContext();
     void context.resume();
     setPlayerName(name);
+    setPlayerEmail(email);
+    // Frozen for the run: the POST fires when status flips to "over", and the
+    // fields stay editable until then, so reading them at submit time could
+    // attribute the run to whatever was typed last.
     setActivePlayer(name);
+    setActiveEmail(email);
     submittedRun.current = false;
     start();
   }
@@ -386,6 +400,35 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
                       className="w-full rounded-input border border-input bg-background px-3 py-2.5 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30"
                     />
                   </label>
+                  <label className="mt-3 block text-left">
+                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Work email
+                    </span>
+                    <input
+                      value={playerEmail}
+                      onChange={(event) => setPlayerEmail(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") handleStart();
+                      }}
+                      type="email"
+                      inputMode="email"
+                      maxLength={254}
+                      autoComplete="email"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      placeholder="you@company.com"
+                      className="w-full rounded-input border border-input bg-background px-3 py-2.5 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30"
+                    />
+                    {/*
+                      Shown only once there is something to be wrong about, so
+                      the start screen doesn't greet a new pilot with an error.
+                    */}
+                    {playerEmail.trim() && !isValidEmail(playerEmail.trim()) ? (
+                      <span className="mt-1.5 block text-xs text-destructive">
+                        That doesn&apos;t look like an email address.
+                      </span>
+                    ) : null}
+                  </label>
                 </>
               ) : (
                 <>
@@ -423,7 +466,10 @@ export default function Inbox({ pool }: { pool: MailTemplate[] }) {
               )}
               <button
                 onClick={status === "idle" ? handleStart : playAgain}
-                disabled={status === "idle" && !playerName.trim()}
+                disabled={
+                  status === "idle" &&
+                  (!playerName.trim() || !isValidEmail(playerEmail.trim()))
+                }
                 className="mt-6 w-full rounded-button bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-button transition-colors hover:bg-primary-900 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none dark:hover:bg-primary-300"
               >
                 {status === "idle" ? "Start game" : "Play again"}

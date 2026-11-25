@@ -40,7 +40,7 @@ type PublicScore = Omit<Score, "email">;
  * suffixed per board so `/polan` and `/` never see each other's runs — see
  * keyFor() in app/board.ts.
  */
-const BOARD_LIMIT = 100;
+const BOARD_LIMIT = 100; 
 
 /**
  * Which board a request is talking about.
